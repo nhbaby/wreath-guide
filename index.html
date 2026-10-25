@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>화환 원형 가이드</title>
+<style>
+  :root {
+    --bg: #000;
+    --panel: rgba(20, 20, 22, 0.92);
+    --fg: #f2f2f2;
+    --muted: #9a9aa0;
+    --line: rgba(255,255,255,0.14);
+    --accent: #ff2d2d;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    overflow: hidden; overscroll-behavior: none; touch-action: manipulation; }
+  [hidden] { display: none !important; }
+
+  #video, #overlay { position: fixed; inset: 0; width: 100%; height: 100%; }
+  #video { object-fit: cover; background: #000; }
+  #overlay { pointer-events: none; }
+
+  /* 설정 버튼 */
+  #toggle {
+    position: fixed; z-index: 5;
+    right: calc(16px + env(safe-area-inset-right, 0px));
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    width: 56px; height: 56px; border-radius: 50%;
+    border: 1px solid var(--line); background: var(--panel); color: var(--fg);
+    display: grid; place-items: center; cursor: pointer;
+  }
+  #toggle svg { width: 26px; height: 26px; }
+
+  /* 설정 패널 */
+  #panel {
+    position: fixed; z-index: 4; left: 0; right: 0; bottom: 0;
+    padding: 18px calc(16px + env(safe-area-inset-right, 0px)) calc(92px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
+    background: var(--panel); border-top: 1px solid var(--line);
+    border-radius: 18px 18px 0 0;
+    display: grid; gap: 18px;
+  }
+  .row { display: grid; gap: 10px; }
+  .label { font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; letter-spacing: .02em; }
+  .label b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .swatches { display: flex; gap: 12px; flex-wrap: wrap; }
+  .sw { width: 40px; height: 40px; border-radius: 50%; border: 3px solid transparent;
+    box-shadow: 0 0 0 1px var(--line) inset; cursor: pointer; padding: 0; }
+  .sw[aria-pressed="true"] { border-color: #fff; }
+
+  input[type=range] { width: 100%; accent-color: var(--accent); height: 32px; }
+
+  .switch { display: flex; align-items: center; justify-content: space-between; font-size: 15px; }
+  .switch input { width: 22px; height: 22px; accent-color: var(--accent); }
+
+  /* 시작/오류 화면 */
+  #gate {
+    position: fixed; inset: 0; z-index: 10; background: #000;
+    display: grid; place-items: center; text-align: center; padding: 24px;
+  }
+  #gate .box { max-width: 320px; display: grid; gap: 16px; }
+  #gate h1 { margin: 0; font-size: 20px; }
+  #gate p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+  #startBtn { padding: 14px 20px; font-size: 16px; font-weight: 600; border: 0; border-radius: 12px;
+    background: var(--accent); color: #fff; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<video id="video" playsinline autoplay muted></video>
+<canvas id="overlay"></canvas>
+
+<button id="toggle" aria-label="설정">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+  </svg>
+</button>
+
+<div id="panel" hidden>
+  <div class="row">
+    <div class="label">선 색상</div>
+    <div class="swatches" id="swatches"></div>
+  </div>
+  <div class="row">
+    <div class="label">선 두께 <b id="widthVal">4px</b></div>
+    <input type="range" id="width" min="1" max="16" step="1" value="4">
+  </div>
+  <label class="switch">중심 십자선 <input type="checkbox" id="cross" checked></label>
+  <label class="switch">흰색 테두리 <input type="checkbox" id="halo" checked></label>
+</div>
+
+<div id="gate">
+  <div class="box">
+    <h1>화환 원형 가이드</h1>
+    <p id="gateMsg">카메라를 켜는 중입니다…</p>
+    <button id="startBtn" hidden>카메라 켜기</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ===== 설정 =====
+  const CIRCLE_RATIO = 0.80;   // 화면 짧은 쪽 대비 원 지름 (나중에 슬라이더로 교체 예정)
+  const COLORS = ['#ff2d2d', '#ffd400', '#22e06b', '#19c7ff', '#ff3bd4', '#ffffff'];
+
+  const defaults = { color: COLORS[0], width: 4, cross: true, halo: true };
+  let s = { ...defaults };
+  try { Object.assign(s, JSON.parse(localStorage.getItem('wreath-guide') || '{}')); } catch (e) {}
+  const save = () => { try { localStorage.setItem('wreath-guide', JSON.stringify(s)); } catch (e) {} };
+
+  const $ = id => document.getElementById(id);
+  const video = $('video'), canvas = $('overlay'), ctx = canvas.getContext('2d');
+
+  // ===== 원 그리기 =====
+  // 캔버스를 화면 CSS 픽셀 × 기기 배율로 맞추고, 화면 좌표 기준으로 그려서
+  // 카메라 비율과 상관없이 항상 정원(正圓)이 된다.
+  function draw() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = window.innerWidth, h = window.innerHeight;
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    const cx = w / 2, cy = h / 2;
+    const r = Math.min(w, h) * CIRCLE_RATIO / 2;
+    const lw = s.width;
+    const haloW = lw + Math.max(3, lw * 0.8);       // 흰 테두리는 선 양쪽으로 보이게 더 굵게
+    const haloColor = s.color === '#ffffff' ? '#000000' : '#ffffff';
+
+    const stroke = (pathFn) => {
+      ctx.lineCap = 'butt';
+      if (s.halo) {
+        ctx.beginPath(); pathFn();
+        ctx.strokeStyle = haloColor; ctx.lineWidth = haloW; ctx.stroke();
+      }
+      ctx.beginPath(); pathFn();
+      ctx.strokeStyle = s.color; ctx.lineWidth = lw; ctx.stroke();
+    };
+
+    // 원
+    stroke(() => ctx.arc(cx, cy, r, 0, Math.PI * 2));
+
+    // 중심 십자선 (원 지름만큼)
+    if (s.cross) {
+      const cw = Math.max(1, lw * 0.5);
+      const ch = cw + Math.max(2, cw * 0.8);
+      const lines = () => {
+        ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy);
+        ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r);
+      };
+      if (s.halo) { ctx.beginPath(); lines(); ctx.strokeStyle = haloColor; ctx.lineWidth = ch; ctx.stroke(); }
+      ctx.beginPath(); lines(); ctx.strokeStyle = s.color; ctx.lineWidth = cw; ctx.stroke();
+    }
+  }
+
+  window.addEventListener('resize', draw);
+  window.addEventListener('orientationchange', () => setTimeout(draw, 200));
+
+  // ===== 설정 UI =====
+  const sw = $('swatches');
+  COLORS.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'sw'; b.style.background = c; b.setAttribute('aria-label', c);
+    b.onclick = () => { s.color = c; save(); syncUI(); draw(); };
+    sw.appendChild(b);
+  });
+  function syncUI() {
+    [...sw.children].forEach(b => b.setAttribute('aria-pressed', b.getAttribute('aria-label') === s.color));
+    $('width').value = s.width; $('widthVal').textContent = s.width + 'px';
+    $('cross').checked = s.cross; $('halo').checked = s.halo;
+    document.documentElement.style.setProperty('--accent', s.color === '#ffffff' ? '#ff2d2d' : s.color);
+  }
+  $('width').oninput = e => { s.width = +e.target.value; save(); syncUI(); draw(); };
+  $('cross').onchange = e => { s.cross = e.target.checked; save(); draw(); };
+  $('halo').onchange = e => { s.halo = e.target.checked; save(); draw(); };
+  $('toggle').onclick = () => { $('panel').hidden = !$('panel').hidden; };
+
+  // ===== 카메라 =====
+  async function startCamera() {
+    const gate = $('gate'), msg = $('gateMsg'), btn = $('startBtn');
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      msg.innerHTML = '카메라는 <b>https://</b> 주소에서만 켜집니다.<br>https 서버에 올려서 열어주세요.';
+      btn.hidden = true; return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+      });
+      video.srcObject = stream;
+      await video.play();
+      gate.hidden = true;
+      keepAwake();
+    } catch (err) {
+      const denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
+      msg.textContent = denied
+        ? '카메라 권한이 거부되었습니다. 브라우저 주소창의 자물쇠 아이콘 → 권한에서 카메라를 허용한 뒤 다시 눌러주세요.'
+        : '카메라를 켜지 못했습니다. 아래 버튼을 눌러 다시 시도해주세요.';
+      btn.hidden = false;
+    }
+  }
+  $('startBtn').onclick = startCamera;
+
+  // ===== 화면 꺼짐 방지 =====
+  let lock = null;
+  async function keepAwake() {
+    try { lock = await navigator.wakeLock?.request('screen'); } catch (e) {}
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && video.srcObject) keepAwake();
+  });
+
+  syncUI(); draw(); startCamera();
+})();
+</script>
+</body>
+</html>
