@@ -56,6 +56,10 @@
 
   input[type=range] { width: 100%; accent-color: var(--accent); height: 32px; }
 
+  select { width: 100%; height: 44px; border-radius: 10px; border: 1px solid var(--line);
+    background: #1c1c1f; color: var(--fg); font-size: 15px; padding: 0 12px; }
+  .hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
   .switch { display: flex; align-items: center; justify-content: space-between; font-size: 15px; }
   .switch input { width: 22px; height: 22px; accent-color: var(--accent); }
 
@@ -84,6 +88,15 @@
 </button>
 
 <div id="panel" hidden>
+  <div class="row">
+    <div class="label">카메라 렌즈</div>
+    <select id="camSelect"><option>불러오는 중…</option></select>
+    <div class="hint">화면이 넓게 휘어 보이면 다른 렌즈를 골라보세요. 초광각 렌즈는 가장자리가 휘어서 원 확인에 맞지 않습니다.</div>
+  </div>
+  <div class="row" id="zoomRow" hidden>
+    <div class="label">줌 <b id="zoomVal">1.0x</b></div>
+    <input type="range" id="zoom" min="1" max="4" step="0.1" value="1">
+  </div>
   <div class="row">
     <div class="label">선 색상</div>
     <div class="swatches" id="swatches"></div>
@@ -186,6 +199,13 @@
   $('toggle').onclick = () => { $('panel').hidden = !$('panel').hidden; };
 
   // ===== 카메라 =====
+  let track = null;
+
+  function stopStream() {
+    if (video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
+    video.srcObject = null; track = null;
+  }
+
   async function startCamera() {
     const gate = $('gate'), msg = $('gateMsg'), btn = $('startBtn');
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
@@ -193,14 +213,29 @@
       btn.hidden = true; return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
-      });
+      stopStream();
+      const v = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+      if (s.deviceId) v.deviceId = { exact: s.deviceId };
+      else v.facingMode = { ideal: 'environment' };
+      if (navigator.mediaDevices.getSupportedConstraints?.().zoom) v.zoom = true;
+
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: v });
+      } catch (e) {
+        // 저장된 렌즈가 사라졌으면 기본 후면 카메라로 다시 시도
+        if (s.deviceId && (e.name === 'OverconstrainedError' || e.name === 'NotFoundError')) {
+          s.deviceId = null; save(); return startCamera();
+        }
+        throw e;
+      }
       video.srcObject = stream;
+      track = stream.getVideoTracks()[0];
       await video.play();
       gate.hidden = true;
       keepAwake();
+      setupZoom();
+      listCameras();
     } catch (err) {
       const denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
       msg.textContent = denied
@@ -210,6 +245,45 @@
     }
   }
   $('startBtn').onclick = startCamera;
+
+  // ===== 렌즈 선택 =====
+  async function listCameras() {
+    const sel = $('camSelect');
+    let cams = [];
+    try { cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput'); } catch (e) {}
+    const current = track?.getSettings?.().deviceId;
+    // 후면 카메라를 앞으로
+    cams.sort((a, b) => (/back|rear|후면|environment/i.test(b.label) ? 1 : 0) - (/back|rear|후면|environment/i.test(a.label) ? 1 : 0));
+    sel.innerHTML = '';
+    let backN = 0, frontN = 0;
+    cams.forEach(c => {
+      const isFront = /front|전면|user/i.test(c.label);
+      const name = isFront ? `전면 카메라 ${++frontN}` : `후면 카메라 ${++backN}`;
+      const o = document.createElement('option');
+      o.value = c.deviceId;
+      o.textContent = c.label ? `${name} (${c.label})` : name;
+      if (c.deviceId === current) o.selected = true;
+      sel.appendChild(o);
+    });
+    if (!cams.length) sel.innerHTML = '<option>카메라 목록을 불러올 수 없음</option>';
+  }
+  $('camSelect').onchange = e => { s.deviceId = e.target.value; s.zoom = 1; save(); startCamera(); };
+
+  // ===== 줌 =====
+  function setupZoom() {
+    const row = $('zoomRow'), z = $('zoom');
+    const caps = track?.getCapabilities?.() || {};
+    if (!caps.zoom || caps.zoom.max <= caps.zoom.min) { row.hidden = true; return; }
+    z.min = caps.zoom.min; z.max = caps.zoom.max; z.step = caps.zoom.step || 0.1;
+    const want = Math.min(Math.max(s.zoom || caps.zoom.min, caps.zoom.min), caps.zoom.max);
+    z.value = want; applyZoom(want);
+    row.hidden = false;
+  }
+  async function applyZoom(val) {
+    $('zoomVal').textContent = (+val).toFixed(1) + 'x';
+    try { await track?.applyConstraints({ advanced: [{ zoom: +val }] }); } catch (e) {}
+  }
+  $('zoom').oninput = e => { s.zoom = +e.target.value; save(); applyZoom(s.zoom); };
 
   // ===== 화면 꺼짐 방지 =====
   let lock = null;
